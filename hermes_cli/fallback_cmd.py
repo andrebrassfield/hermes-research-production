@@ -21,6 +21,8 @@ from __future__ import annotations
 import copy
 from typing import Any, Dict, List, Optional
 
+from hermes_cli.runtime_provider import normalize_model_default
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -69,7 +71,7 @@ def _extract_fallback_from_model_cfg(model_cfg: Any) -> Optional[Dict[str, Any]]
         return None
     provider = (model_cfg.get("provider") or "").strip()
     # The picker writes the selected model to ``model.default``.
-    model = (model_cfg.get("default") or model_cfg.get("model") or "").strip()
+    model = normalize_model_default(model_cfg.get("default")) or normalize_model_default(model_cfg.get("model"))
     if not provider or not model:
         return None
     entry: Dict[str, Any] = {"provider": provider, "model": model}
@@ -144,7 +146,7 @@ def _describe_primary(config: Dict[str, Any]) -> Optional[str]:
     model_cfg = config.get("model")
     if isinstance(model_cfg, dict):
         provider = (model_cfg.get("provider") or "?").strip() or "?"
-        model = (model_cfg.get("default") or model_cfg.get("model") or "?").strip() or "?"
+        model = normalize_model_default(model_cfg.get("default")) or normalize_model_default(model_cfg.get("model")) or "?"
         return f"{model}  (via {provider})"
     if isinstance(model_cfg, str) and model_cfg.strip():
         return model_cfg.strip()

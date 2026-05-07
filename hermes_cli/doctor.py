@@ -400,11 +400,12 @@ def run_doctor(args):
         # Validate model.provider and model.default values
         try:
             import yaml as _yaml
+            from hermes_cli.runtime_provider import normalize_model_default
             cfg = _yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
             model_section = cfg.get("model") or {}
             provider_raw = (model_section.get("provider") or "").strip()
             provider = provider_raw.lower()
-            default_model = (model_section.get("default") or model_section.get("model") or "").strip()
+            default_model = normalize_model_default(model_section.get('default')) or normalize_model_default(model_section.get('model'))
 
             known_providers: set = set()
             try:
