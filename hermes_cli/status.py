@@ -17,7 +17,7 @@ from hermes_cli.colors import Colors, color
 from hermes_cli.config import get_env_path, get_env_value, get_hermes_home, load_config
 from hermes_cli.models import provider_label
 from hermes_cli.nous_subscription import get_nous_subscription_features
-from hermes_cli.runtime_provider import resolve_requested_provider
+from hermes_cli.runtime_provider import normalize_model_default, resolve_requested_provider
 from hermes_cli.vercel_auth import describe_vercel_auth
 from hermes_constants import OPENROUTER_MODELS_URL
 from tools.tool_backend_helpers import managed_nous_tools_enabled
@@ -62,7 +62,7 @@ def _configured_model_label(config: dict) -> str:
     """Return the configured default model from config.yaml."""
     model_cfg = config.get("model")
     if isinstance(model_cfg, dict):
-        model = (model_cfg.get("default") or model_cfg.get("name") or "").strip()
+        model = normalize_model_default(model_cfg.get("default")) or normalize_model_default(model_cfg.get("name"))
     elif isinstance(model_cfg, str):
         model = model_cfg.strip()
     else:

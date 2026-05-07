@@ -107,26 +107,68 @@ def _auto_detect_local_model(base_url: str) -> str:
     return ""
 
 
+
+def normalize_model_default(value: Any) -> str:
+    """Return a scalar model name from current or legacy ``model.default`` values."""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        for key in ("model", "default", "name", "id"):
+            candidate = value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+    return ""
+
+
+def normalize_model_config_shape(model_cfg: Any) -> Dict[str, Any]:
+    """Normalize current and legacy ``config['model']`` shapes."""
+    if isinstance(model_cfg, str):
+        return {"default": model_cfg.strip()} if model_cfg.strip() else {}
+    if not isinstance(model_cfg, dict):
+        return {}
+
+    cfg = dict(model_cfg)
+
+    # Accept ``model.model`` as an alias for ``model.default``.
+    if not cfg.get("default") and cfg.get("model"):
+        cfg["default"] = cfg["model"]
+
+    legacy_default = cfg.get("default")
+    if isinstance(legacy_default, dict):
+        legacy_model = normalize_model_default(legacy_default)
+        legacy_provider = str(legacy_default.get("provider") or "").strip()
+        legacy_base_url = str(legacy_default.get("base_url") or "").strip()
+
+        if legacy_model:
+            cfg["default"] = legacy_model
+        else:
+            cfg.pop("default", None)
+
+        if legacy_provider and not str(cfg.get("provider") or "").strip():
+            cfg["provider"] = legacy_provider
+        if legacy_base_url and not str(cfg.get("base_url") or "").strip():
+            cfg["base_url"] = legacy_base_url
+    else:
+        normalized_default = normalize_model_default(legacy_default)
+        if normalized_default:
+            cfg["default"] = normalized_default
+        elif "default" in cfg and legacy_default is not None:
+            cfg.pop("default", None)
+
+    return cfg
+
 def _get_model_config() -> Dict[str, Any]:
     config = load_config()
-    model_cfg = config.get("model")
-    if isinstance(model_cfg, dict):
-        cfg = dict(model_cfg)
-        # Accept "model" as alias for "default" (users intuitively write model.model)
-        if not cfg.get("default") and cfg.get("model"):
-            cfg["default"] = cfg["model"]
-        default = (cfg.get("default") or "").strip()
-        base_url = (cfg.get("base_url") or "").strip()
-        is_local = "localhost" in base_url or "127.0.0.1" in base_url
-        is_fallback = not default
-        if is_local and is_fallback and base_url:
-            detected = _auto_detect_local_model(base_url)
-            if detected:
-                cfg["default"] = detected
-        return cfg
-    if isinstance(model_cfg, str) and model_cfg.strip():
-        return {"default": model_cfg.strip()}
-    return {}
+    cfg = normalize_model_config_shape(config.get("model"))
+    default = normalize_model_default(cfg.get("default"))
+    base_url = str(cfg.get("base_url") or "").strip()
+    is_local = "localhost" in base_url or "127.0.0.1" in base_url
+    is_fallback = not default
+    if is_local and is_fallback and base_url:
+        detected = _auto_detect_local_model(base_url)
+        if detected:
+            cfg["default"] = detected
+    return cfg
 
 
 def _provider_supports_explicit_api_mode(provider: Optional[str], configured_provider: Optional[str] = None) -> bool:
@@ -152,7 +194,7 @@ def _copilot_runtime_api_mode(model_cfg: Dict[str, Any], api_key: str) -> str:
     if configured_mode and _provider_supports_explicit_api_mode("copilot", configured_provider):
         return configured_mode
 
-    model_name = str(model_cfg.get("default") or "").strip()
+    model_name = normalize_model_default(model_cfg.get("default"))
     if not model_name:
         return "chat_completions"
 
